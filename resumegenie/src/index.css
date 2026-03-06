@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0E131B; }
+::-webkit-scrollbar-thumb { background: #2E3A4D; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #44546E; }
+
+/* Resume print styles */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+  .resume-preview-root { box-shadow: none !important; }
+}
