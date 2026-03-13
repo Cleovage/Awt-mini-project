@@ -10,23 +10,139 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import { useResume } from '../context/ResumeContext';
 
-function buildResumeText(state) {
+// Comprehensive stopwords to filter out non-meaningful words (including common 2-letter noise words)
+const STOPWORDS = new Set([
+  // 2-letter noise words (kept to allow short tech terms like 'go', 'c#', 'r')
+  'at', 'in', 'of', 'by', 'on', 'to', 'as', 'be', 'do', 'if', 'it', 'is',
+  'an', 'or', 'we', 'me', 'he', 'no', 'so', 'up', 'us', 'my', 'ok', 'vs',
+  // 3+ letter stopwords
+  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was',
+  'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may',
+  'new', 'now', 'old', 'see', 'two', 'way', 'who', 'any', 'use', 'man', 'too',
+  'that', 'this', 'with', 'from', 'your', 'have', 'more', 'will', 'must', 'been',
+  'about', 'they', 'their', 'there', 'then', 'than', 'when', 'what', 'which',
+  'such', 'also', 'each', 'would', 'could', 'should', 'other', 'into', 'over',
+  'after', 'well', 'just', 'like', 'able', 'need', 'make', 'some', 'both', 'many',
+  'most', 'using', 'used', 'role', 'team', 'good', 'very', 'help', 'look', 'join',
+  'take', 'best', 'care', 'time', 'year', 'years', 'work', 'great', 'strong',
+  'high', 'level', 'plus', 'nice', 'knowledge', 'ability', 'youll', 'were',
+  'dont', 'youre', 'these', 'those', 'through', 'across', 'while',
+  'within', 'without', 'between', 'during', 'before', 'above', 'below', 'under',
+  'where', 'here', 'same', 'only', 'even', 'back', 'long', 'find', 'ever',
+]);
+
+// Normalize common tech abbreviations to canonical forms
+const ALIASES = new Map([
+  ['js', 'javascript'],
+  ['ts', 'typescript'],
+  ['py', 'python'],
+  ['k8s', 'kubernetes'],
+  ['reactjs', 'react'],
+  ['react.js', 'react'],
+  ['nodejs', 'node'],
+  ['node.js', 'node'],
+  ['vuejs', 'vue'],
+  ['vue.js', 'vue'],
+  ['nextjs', 'next'],
+  ['next.js', 'next'],
+  ['golang', 'go'],
+  ['postgres', 'postgresql'],
+  ['mongo', 'mongodb'],
+  ['ci/cd', 'cicd'],
+]);
+
+function normalizeWord(w) {
+  return ALIASES.get(w) ?? w;
+}
+
+function extractKeywords(text) {
+  // Preserve #, +, . and / to correctly handle tokens like c#, c++, .net, ci/cd
+  const cleaned = text.toLowerCase().replace(/[^a-z0-9#+./\s]/g, ' ');
+  // Allow 2+ character tokens so short but meaningful tech terms (go, c#, r, aws) are not discarded
+  const words = cleaned.split(/\s+/).filter(w => w.length > 1 && !STOPWORDS.has(w));
+  return new Set(words.map(normalizeWord));
+}
+
+function buildSectionTexts(state) {
   const { personalInfo, experience, education, skills, projects, certifications } = state;
-  const lines = [];
-  if (personalInfo.name) lines.push(personalInfo.name);
-  if (personalInfo.summary) lines.push(personalInfo.summary);
-  experience.forEach(e => {
-    lines.push(e.role + ' at ' + e.company);
-    e.bullets?.forEach(b => b && lines.push(b));
-  });
-  education.forEach(e => lines.push(e.degree + ' ' + e.field + ' ' + e.institution));
-  lines.push([...skills.technical, ...skills.soft, ...skills.languages].join(', '));
-  projects.forEach(p => {
-    lines.push(p.name + ': ' + p.description);
-    if (p.techStack.length) lines.push(p.techStack.join(', '));
-  });
-  certifications.forEach(c => lines.push(c.name + ' - ' + c.issuer));
-  return lines.filter(Boolean).join('\n');
+
+  const summaryText = [personalInfo.name, personalInfo.summary].filter(Boolean).join(' ');
+
+  const experienceText = experience.map(e =>
+    [e.role, e.company, ...(e.bullets || []).filter(Boolean)].join(' ')
+  ).join(' ');
+
+  const skillsText = [...skills.technical, ...skills.soft, ...skills.languages].join(' ');
+
+  const educationText = education.map(e =>
+    [e.institution, e.degree, e.field].filter(Boolean).join(' ')
+  ).join(' ');
+
+  const projectsText = projects.map(p =>
+    [p.name, p.description, ...(p.techStack || [])].filter(Boolean).join(' ')
+  ).join(' ');
+
+  const certificationsText = certifications.map(c =>
+    [c.name, c.issuer].filter(Boolean).join(' ')
+  ).join(' ');
+
+  return { summaryText, experienceText, skillsText, educationText, projectsText, certificationsText };
+}
+
+function buildResumeText(state) {
+  const { summaryText, experienceText, skillsText, educationText, projectsText, certificationsText } = buildSectionTexts(state);
+  return [summaryText, experienceText, skillsText, educationText, projectsText, certificationsText]
+    .filter(Boolean).join('\n');
+}
+
+function scoreSection(sectionText, jdKeywords) {
+  if (jdKeywords.size === 0) return 0;
+  if (!sectionText.trim()) return 0;
+  const sectionKws = extractKeywords(sectionText);
+  let matched = 0;
+  for (const kw of jdKeywords) {
+    if (sectionKws.has(kw)) matched++;
+  }
+  return Math.min(100, Math.round((matched / jdKeywords.size) * 100));
+}
+
+function generateSuggestions(sectionScores, missing, overallScore) {
+  const suggestions = [];
+
+  if (missing.length > 0) {
+    const topMissing = missing.slice(0, 6).join(', ');
+    suggestions.push(`Incorporate these missing keywords into your resume: ${topMissing}.`);
+  }
+
+  if (sectionScores.skills < 60) {
+    suggestions.push('Your Skills section is missing key terms from the job description. List the specific tools, frameworks, and technologies the employer mentions.');
+  } else if (sectionScores.skills < 80) {
+    suggestions.push('Expand your Skills section with more technologies and tools from the job posting to improve keyword coverage.');
+  }
+
+  if (sectionScores.experience < 60) {
+    suggestions.push("Rewrite your experience bullet points to mirror the job description's language. ATS systems rank resumes higher when they use the employer's exact terminology.");
+  } else if (sectionScores.experience < 80) {
+    suggestions.push('Quantify your achievements with measurable metrics (e.g., "improved performance by 30%", "reduced costs by $50K") and include more role-specific keywords.');
+  }
+
+  if (sectionScores.summary < 50) {
+    suggestions.push('Update your professional summary to highlight the key qualifications, skills, and technologies that appear in the job description.');
+  }
+
+  if (suggestions.length < 3) {
+    if (overallScore >= 75) {
+      suggestions.push('Your resume is well-matched. Ensure formatting is ATS-friendly: use a single-column layout, standard fonts, and avoid tables or graphics.');
+    } else {
+      suggestions.push('Use the exact industry terminology from the job description. Avoid synonyms or abbreviations that ATS parsers may not recognize.');
+    }
+  }
+
+  if (suggestions.length < 4) {
+    suggestions.push('Verify your job titles closely match the position title in the posting, as ATS systems weight title matches heavily.');
+  }
+
+  return suggestions;
 }
 
 function ScoreGauge({ score }) {
@@ -120,46 +236,45 @@ export default function ATSScorerPage() {
   const resumeText = buildResumeText(state);
   const hasResume = resumeText.trim().length > 20;
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = () => {
     if (!jobDesc.trim()) { setError('Please paste a job description first.'); return; }
     if (!hasResume) { setError('Your resume is empty. Please fill in the Builder first.'); return; }
     setError('');
     setLoading(true);
     setResult(null);
 
-    // Dummy timeout to simulate local processing
     setTimeout(() => {
-      const stops = new Set(['that', 'this', 'with', 'from', 'your', 'have', 'more', 'will', 'must', 'been', 'about', 'they']);
-      const jdWords = Array.from(new Set(jobDesc.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 4 && !stops.has(w))));
-      const resumeWords = new Set(resumeText.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/));
+      const jdKeywords = extractKeywords(jobDesc);
+      const resumeKeywords = extractKeywords(resumeText);
 
-      const matched = jdWords.filter(w => resumeWords.has(w)).slice(0, 10);
-      const missing = jdWords.filter(w => !resumeWords.has(w)).slice(0, 10);
-      const ratio = jdWords.length > 0 ? (matched.length / Math.min(jdWords.length, 25)) : 0.5;
-      const baseScore = Math.min(100, Math.max(0, Math.floor(ratio * 100)));
+      const matched = [...jdKeywords].filter(kw => resumeKeywords.has(kw)).slice(0, 15);
+      const missing = [...jdKeywords].filter(kw => !resumeKeywords.has(kw)).slice(0, 15);
 
-      // Ensure some natural variance
-      const safeStat = (s) => Math.min(100, Math.max(0, s + Math.floor(Math.random() * 20) - 10));
+      const { summaryText, experienceText, skillsText, educationText } = buildSectionTexts(state);
+      const sectionScores = {
+        summary: scoreSection(summaryText, jdKeywords),
+        experience: scoreSection(experienceText, jdKeywords),
+        skills: scoreSection(skillsText, jdKeywords),
+        education: scoreSection(educationText, jdKeywords),
+      };
+
+      // Weighted overall score: skills + experience carry the most weight
+      const overallScore = Math.round(
+        sectionScores.summary * 0.20 +
+        sectionScores.experience * 0.35 +
+        sectionScores.skills * 0.35 +
+        sectionScores.education * 0.10
+      );
 
       setResult({
-        overallScore: baseScore,
-        sections: {
-          summary: safeStat(baseScore),
-          experience: safeStat(baseScore),
-          skills: safeStat(baseScore),
-          education: safeStat(baseScore)
-        },
-        keywordsMatched: matched.length > 0 ? matched : ['development'],
-        keywordsMissing: missing.length > 0 ? missing : ['optimization'],
-        suggestions: [
-          "Include more exact keywords from the job description.",
-          "Quantify your accomplishments to show measurable impact.",
-          "Check that your job titles align with the required experience.",
-          "Keep formatting clean and readable without over-designing."
-        ]
+        overallScore,
+        sections: sectionScores,
+        keywordsMatched: matched,
+        keywordsMissing: missing,
+        suggestions: generateSuggestions(sectionScores, missing, overallScore),
       });
       setLoading(false);
-    }, 1500);
+    }, 800);
   };
 
   return (

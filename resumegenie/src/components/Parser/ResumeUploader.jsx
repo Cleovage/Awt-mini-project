@@ -31,9 +31,9 @@ export default function ResumeUploader() {
       
       setStatus('parsing');
       
-      // Removed AI logic, just dummy map text to summary
+      // Map the full extracted text into the summary field for reference
       const mockResult = {
-        personalInfo: { summary: text.substring(0, 1000) + (text.length > 1000 ? '...\n\n(Note: Automatically parsed raw text for reference)' : '') },
+        personalInfo: { summary: text.trim() },
         experience: [],
         education: [],
         skills: { technical: [], soft: [], languages: [] },
