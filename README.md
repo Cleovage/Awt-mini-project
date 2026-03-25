@@ -26,18 +26,28 @@ A free, privacy-first resume builder and ATS (Applicant Tracking System) optimiz
 
 ## Getting Started
 
+### Prerequisites
+
+- Node.js 18+ (LTS recommended)
+- npm (comes with Node.js)
+
+### Run locally (step-by-step)
+
 ```bash
-# 1. Navigate into the project directory
+# 1) Open a terminal in the repository root
+cd /path/to/Awt-mini-project
+
+# 2) Go to the frontend app directory
 cd resumegenie
 
-# 2. Install dependencies
+# 3) Install dependencies
 npm install
 
-# 3. Start the development server
+# 4) Start the development server
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`.
+Then open: `http://localhost:5173`
 
 ### Other Scripts
 
