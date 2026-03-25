@@ -60,8 +60,6 @@ const STATS = [
   { value: '0', label: 'Data Sent to Server', icon: <SecurityIcon sx={{ fontSize: 20 }} /> },
 ];
 
-const freeApis = [];
-
 export default function HomePage() {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -326,5 +324,4 @@ export default function HomePage() {
     </Box>
   );
 }
-
 
